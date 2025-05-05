@@ -1,0 +1,3 @@
+#!/bin/bash
+# launcher_arr.sh completo
+...

@@ -1,0 +1,3 @@
+#!/bin/bash
+# restore_arr.sh completo
+...

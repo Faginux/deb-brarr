@@ -1,0 +1,3 @@
+#!/bin/bash
+# backup_arr.sh completo
+...
