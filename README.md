@@ -1,60 +1,106 @@
-# Debian BTRFS ARR Toolkit
 
-![Version](https://img.shields.io/badge/version-1.0-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg) ![ShellCheck](https://img.shields.io/badge/shellcheck-passed-brightgreen)
+# Debian BTRFS ARR Control
 
-Toolkit completo per backup e ripristino di configurazioni e servizi (Radarr, Sonarr, Plex, Notifiarr) su Debian con filesystem BTRFS.
+🚀 **Un toolkit completo per backup, ripristino e gestione di snapshot BTRFS su Debian**, con supporto per applicazioni multimediali come **Radarr, Sonarr, Plex, Notifiarr, qBittorrent, NoMachine**.
 
-**Creato da Faginux & ChatGPT (OpenAI)**
+Creato da **Oscar (Faginux)** & **ChatGPT (OpenAI)**.
 
 ---
 
-## 📦 Contenuto
+## 🏆 **Cosa fa questo progetto**
 
-- `backup_arr.sh`: script di backup completo con compressione ZSTD, checksum, opzione rollback snapshot
-- `restore_arr.sh`: script di ripristino completo con reinstallazione automatica servizi, ripristino configurazioni, confronto fstab interattivo
-- `launcher_arr.sh`: script di avvio rapido per backup/ripristino/aggiornamento
-- `LICENSE`: licenza MIT
-- `README.md`: questa documentazione
+✅ Effettua **backup completi** di:
+- Configurazioni e dati di Radarr, Sonarr, Plex, Notifiarr
+- Configurazioni utente di qBittorrent e NoMachine (tutti gli utenti presenti)
+- Configurazioni server di NoMachine
+- File di sistema come `/etc/fstab` e log
 
-## 🚀 Avvio rapido
+✅ Verifica **integrità dei backup con SHA256 (in parallelo)**
 
-Per eseguire direttamente senza scaricare manualmente:
+✅ Crea un archivio compresso `.tar.zst` con **hash SHA256 incluso**
+
+✅ Salva il backup su **unità USB selezionabile dall’utente**
+
+✅ Permette il **ripristino dei dati** con controllo e conferma
+
+✅ Integra una funzione di **rollback snapshot BTRFS interattivo**
+
+✅ Offre un **launcher interattivo** per scegliere tra backup, ripristino, aggiornamento script
+
+✅ Controlla automaticamente la presenza e la versione degli script, scaricandoli dal repository solo se necessario
+
+✅ Verifica i comandi essenziali (`curl`, `chmod`) e propone di installarli in automatico
+
+---
+
+## 📂 **I tre script principali**
+
+### `backup_arr.sh`
+Script principale di **backup**:
+- Effettua backup incrementale (opzionale)
+- Verifica integrità file
+- Archivia e comprime il backup
+- Salva su USB
+- Esegue rollback snapshot opzionale
+
+### `restore_arr.sh`
+Script di **ripristino**:
+- Decomprime e ripristina automaticamente tutti i dati
+- Verifica hash SHA256 prima dell’estrazione
+- Riavvia i servizi dopo il ripristino
+- Crea una copia di sicurezza dei file di sistema prima di sovrascriverli
+
+### `launcher_arr.sh`
+Un pratico **launcher interattivo**:
+- Ti fa scegliere se eseguire backup o ripristino
+- Scarica automaticamente gli script aggiornati solo se necessario
+- Controlla la versione locale/remota
+- Ti propone l’aggiornamento solo se la versione è diversa o su tua conferma
+
+---
+
+## 🖥️ **Come si usa**
+
+### ✅ Per avviare tutto **con un solo comando**, usa:
 
 ```bash
 bash <(curl -s https://tinyurl.com/launch-arr)
 ```
 
-## ✨ Funzionalità
+> Questo comando scarica ed esegue `launcher_arr.sh` direttamente dal repository.
 
-✅ Backup completo configurazioni Radarr, Sonarr, Plex, Notifiarr  
-✅ Compressione ZSTD massima  
-✅ Checksum SHA256 integrato  
-✅ Ripristino configurazioni e permessi corretti  
-✅ Ripristino /etc/fstab con confronto `diff` e conferma interattiva  
-✅ Reinstallazione automatica servizi mancanti  
-✅ Rollback snapshot BTRFS interattivo  
-✅ Launcher unico per gestire tutto
+---
 
-## 📄 Esempio d’uso
+## 🎛️ **Funzionalità avanzate**
 
-1. Collega una USB e avvia lo script launcher:
-   ```bash
-   bash <(curl -s https://tinyurl.com/launch-arr)
-   ```
-2. Seleziona **Esegui Backup** o **Esegui Ripristino** dal menu interattivo
-3. Segui le istruzioni a schermo
+- Supporta rollback da snapshot BTRFS interattivo
+- Backup multiutente automatico per qBittorrent e NoMachine
+- Controllo integrità con SHA256 parallelo (più veloce su directory grandi)
+- Comandi eseguiti in modo sicuro con log e messaggi chiari
+- Supporta `apt`, `dnf` e `pacman` per installazione automatica delle dipendenze di base
 
-## 📌 Requisiti
+---
 
-- Debian 12 o superiore
-- Filesystem BTRFS
-- Volume `/dev/mapper/VGO-LGO`
-- Comandi: `btrfs`, `tar`, `zstd`, `sha256sum`, `curl`, `wget`, `systemctl`, `diff`
+## 📋 **Requisiti**
 
-## 🤝 Contribuire
+- Debian 12 (o superiore) con filesystem BTRFS
+- Subvolumi configurati: `@`, `@home`, `@var`, `@tmp`, `@snapshots`
+- `curl`, `chmod`, `rsync`, `tar`, `zstd`, `sha256sum`, `xargs`, `btrfs-progs`, `vgchange`, `awk`, `logrotate`
 
-Pull request e segnalazioni benvenute! Contattami su GitHub [Faginux](https://github.com/Faginux).
+---
 
-## 📝 Licenza
+## 📝 **Licenza**
 
-MIT – vedi file LICENSE
+Questo progetto è distribuito sotto licenza **MIT**.
+
+© 2025 Oscar (Faginux) & ChatGPT (OpenAI)
+
+---
+
+## 🤝 **Supporto**
+
+Hai domande o vuoi contribuire? Scrivimi su GitHub oppure apri una issue!
+
+---
+
+**Debian BTRFS ARR Control**: il tuo sistema sempre al sicuro, senza complicazioni.
