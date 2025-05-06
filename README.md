@@ -21,7 +21,7 @@ Toolkit completo per backup e ripristino di configurazioni e servizi (Radarr, So
 Per eseguire direttamente senza scaricare manualmente:
 
 ```bash
-bash <(curl -s https://tinyurl.com/deb-brarr)
+bash <(curl -s https://tinyurl.com/launch-arr)
 ```
 
 ## ✨ Funzionalità
@@ -39,7 +39,7 @@ bash <(curl -s https://tinyurl.com/deb-brarr)
 
 1. Collega una USB e avvia lo script launcher:
    ```bash
-   bash <(curl -s https://tinyurl.com/deb-brarr)
+   bash <(curl -s https://tinyurl.com/launch-arr)
    ```
 2. Seleziona **Esegui Backup** o **Esegui Ripristino** dal menu interattivo
 3. Segui le istruzioni a schermo
