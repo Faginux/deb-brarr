@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+VERSION="1.0"
+
 # ====================================================================================
 # backup_arr.sh - Script di backup e rollback BTRFS completo
 # Creato da Oscar & ChatGPT (OpenAI)
