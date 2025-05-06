@@ -1,84 +1,101 @@
-#!/usr/bin/env bash
-set -euo pipefail
-
-BASE_DEVICE="/dev/mapper/VGO-LGO"
-BTRFS_MNT="/mnt/btrfs"
-USB_MNT="/mnt/usb"
-BACKUP_BASE="/backups"
-LOGFILE="/var/log/backup_arr.log"
-LOGROTATE_CONF="/etc/logrotate.d/backup_arr"
-INCREMENTAL=true
-ROLLBACK=true
-dry=false
-BACKUP_ONLY="all"
-RESTORE_ONLY=false
-
-require_cmd() { command -v "$1" &>/dev/null || { echo "[ERROR] Missing: $1" >&2; exit 1; } }
-for cmd in lsblk vgchange btrfs mktemp rsync tar sha256sum zstd awk getopts logrotate xargs; do require_cmd "$cmd"; done
-
-do_it() {
-  if [[ "$dry" == true ]]; then echo "DRY-RUN: $*"; else eval "$*"; fi
-  local status=$?
-  if [[ $status -ne 0 ]]; then echo "[ERROR] Command failed: $*" >&2; exit $status; fi
+restore_interattivo_install_notifiarr.sh
+#!/bin/bash
+set -e
+LOGFILE="./restore_log.txt"
+exec > >(tee -a "$LOGFILE") 2>&1
+echo "=== Avvio ripristino configurazioni e servizi: $(date) ==="
+create_user_and_group(){
+  local user=$1 grp=$2 extra=${3:-}
+  if ! getent group "$grp" &>/dev/null; then sudo groupadd "$grp"; fi
+  if ! id "$user" &>/dev/null 2>&1; then sudo useradd --system --no-create-home --ingroup "$grp" "$user"; fi
+  if [ -n "$extra" ]; then sudo usermod -a -G "$extra" "$user"; fi
 }
-
-backup_and_verify() {
-  local src="$1" dst="$2" linkdest=""
-  mkdir -p "$dst"
-  if [[ "$INCREMENTAL" == true && -d "$BACKUP_BASE/last$dst" ]]; then
-    linkdest="--link-dest=$BACKUP_BASE/last$dst"
-  fi
-  echo "-> Backup $src -> $dst"
-  do_it rsync -a --delete -P --info=progress2 --no-inc-recursive $linkdest "$src/" "$dst/"
-  echo "-> Verifica SHA256 parallela..."
-  export SRC_BASE="$src" DST_BASE="$dst"
-  find "$src" -type f -print0 | xargs -0 -n1 -P"$(nproc)" bash -c '
-    src_file="$1"; rel="${src_file#$SRC_BASE}"; dest_file="$DST_BASE$rel"
-    [[ -f "$dest_file" ]] || { echo "[ERROR] Missing: $dest_file"; exit 1; }
-    src_hash=$(sha256sum "$src_file" | cut -d" " -f1)
-    dst_hash=$(sha256sum "$dest_file" | cut -d" " -f1)
-    [[ "$src_hash" == "$dst_hash" ]] || { echo "[ERROR] Checksum mismatch: $src_file"; exit 1; }
-  ' _
-}
-
-BACKUP_TMP=$(mktemp -d)
-mkdir -p "$USB_MNT" "$BTRFS_MNT"
-echo "Dispositivi disponibili:"; lsblk -o NAME,SIZE,TYPE,MOUNTPOINT | grep -E 'sd|nvme'
-read -rp "Device USB (es: sdb1): " d; USB_DEV="/dev/${d##*/}"
-[[ -b "$USB_DEV" ]] || { echo "[ERROR] Invalid device"; exit 1; }
-do_it mount "$USB_DEV" "$USB_MNT"
-do_it vgchange -ay
-do_it mount -o subvol=@ "$BASE_DEVICE" "$BTRFS_MNT"
-
-[[ "$RESTORE_ONLY" == false ]] && {
-  [[ "$BACKUP_ONLY" =~ all|servarr ]] && backup_servarr
-  [[ "$BACKUP_ONLY" =~ all|users ]] && backup_users
-  [[ "$BACKUP_ONLY" =~ all|nx ]] && backup_nx_server
-  [[ "$BACKUP_ONLY" =~ all|misc ]] && backup_misc
-}
-
-package_archive() {
-  local ts=$(date +'%Y%m%d_%H%M') arch="backup_arr_$ts.tar"
-  do_it tar -cpf "$BACKUP_TMP/$arch" -C "$BACKUP_TMP" .
-  do_it sha256sum "$BACKUP_TMP/$arch" > "$BACKUP_TMP/$arch.sha256"
-  do_it zstd -19 -f "$BACKUP_TMP/$arch"
-  do_it mv "$BACKUP_TMP/$arch.zst" "$USB_MNT/"
-  do_it mv "$BACKUP_TMP/$arch.sha256" "$USB_MNT/"
-  echo "Archivio creato e spostato su USB"
-  if [[ "$INCREMENTAL" == true ]]; then do_it rm -f "$BACKUP_BASE/last"; do_it ln -s "$USB_MNT/$arch.zst" "$BACKUP_BASE/last"; fi
-}
-package_archive
-
-if [[ "$ROLLBACK" == true ]]; then
-  echo "=== Rollback snapshot ==="
-  do_it umount "$BTRFS_MNT"
-  do_it mount "$BASE_DEVICE" "$BTRFS_MNT"
-  btrfs subvolume list "$BTRFS_MNT/@snapshots" | awk '{print "ID:"$2,"Path:"$NF}'
-  read -rp "ID snapshot: " sid
-  path=$(btrfs subvolume list "$BTRFS_MNT/@snapshots" | awk -v i="$sid" '$2==i{print $NF}')
-  do_it btrfs subvolume delete "$BTRFS_MNT/@"
-  do_it btrfs subvolume snapshot "$BTRFS_MNT/@snapshots/$path" "$BTRFS_MNT/@"
-  echo "Snapshot $sid ripristinato. Riavvia il sistema."
+create_user_and_group radarr plex
+create_user_and_group sonarr plex
+create_user_and_group plex plex
+create_user_and_group notifiarr notifiarr
+echo "Utenti e gruppi verificati o creati"
+if ! systemctl status radarr >/dev/null 2>&1; then
+  echo "Installazione Radarr..."
+  curl -s https://raw.githubusercontent.com/Servarr/servarr-installer/main/servarr_installer.sh | sudo bash -s -- radarr
+else
+  echo "Radarr già installato"
 fi
-
-echo "Script completato con successo."
+if ! systemctl status sonarr >/dev/null 2>&1; then
+  echo "Installazione Sonarr..."
+  curl -s https://raw.githubusercontent.com/Servarr/servarr-installer/main/servarr_installer.sh | sudo bash -s -- sonarr
+else
+  echo "Sonarr già installato"
+fi
+if ! systemctl status plexmediaserver >/dev/null 2>&1; then
+  echo "Installazione Plex..."
+  wget https://downloads.plex.tv/plex-media-server-new/plexmediaserver.deb -O /tmp/plex.deb
+  sudo apt install -y /tmp/plex.deb
+else
+  echo "Plex già installato"
+fi
+if ! systemctl status notifiarr >/dev/null 2>&1; then
+  echo "Installazione Notifiarr..."
+  curl -s https://golift.io/repo.sh | sudo bash -s - notifiarr
+else
+  echo "Notifiarr già installato"
+fi
+BKP_DIR="$HOME/Scaricati"
+echo "Archivi di backup trovati in $BKP_DIR:"
+ls "$BKP_DIR"/*.tar.zst || { echo "Nessun archivio trovato"; exit 1; }
+read -p "Inserisci il nome dell'archivio (.tar.zst): " ARC
+ARC_PATH="$BKP_DIR/$ARC"
+[ ! -f "$ARC_PATH" ] && { echo "Archivio non trovato: $ARC_PATH"; exit 1; }
+TEMP="/tmp/restore_temp"
+sudo rm -rf "$TEMP" && sudo mkdir -p "$TEMP"
+echo "Estrazione dell'archivio..."
+sudo tar -I zstd -xf "$ARC_PATH" -C "$TEMP"
+echo "Verifica checksum SHA256..."
+sha256sum -c "$TEMP"/*.sha256 || { echo "Errore: checksum fallito"; exit 1; }
+echo "Checksum OK"
+echo "Creo una copia dell'attuale /etc/fstab sulla Desktop..."
+mkdir -p "$HOME/Desktop"
+if [ -f /etc/fstab ]; then
+  cp /etc/fstab "$HOME/Desktop/fstab.attuale.backup.$(date +%Y%m%d_%H%M)"
+  echo "Backup salvato su $HOME/Desktop/fstab.attuale.backup.*"
+fi
+# === MOSTRA DIFFERENZE PRIMA DI SOVRASCRIVERE ===
+echo "Confronto tra fstab attuale e quello del backup:"
+diff_output=$(diff -u /etc/fstab "$TEMP/fstab" || true)
+if [ -n "$diff_output" ]; then
+  echo "$diff_output"
+  echo "$diff_output" > "$HOME/Desktop/fstab.diff.$(date +%Y%m%d_%H%M).txt"
+  echo "Differenze salvate su Desktop in fstab.diff.*.txt"
+else
+  echo "(Nessuna differenza trovata)"
+fi
+read -p "Vuoi sovrascrivere /etc/fstab con quello del backup? (y/N): " conferma_fstab
+if [[ "$conferma_fstab" == "y" || "$conferma_fstab" == "Y" ]]; then
+  echo "Ripristino /etc/fstab dal backup..."
+  sudo cp "$TEMP/fstab" /etc/fstab
+  echo "/etc/fstab ripristinato dal backup."
+else
+  echo "Ripristino /etc/fstab saltato."
+fi
+echo "Arresto servizi per ripristino sicuro..."
+sudo systemctl stop radarr sonarr plexmediaserver notifiarr
+echo "Ripristino delle configurazioni nelle directory corrette..."
+sudo cp -a "$TEMP/radarr/." /var/lib/radarr/
+sudo cp -a "$TEMP/sonarr/." /var/lib/sonarr/
+sudo cp -a "$TEMP/plexmediaserver/." /var/lib/plexmediaserver/
+sudo cp -a "$TEMP/etc_notifiarr/." /etc/notifiarr/
+sudo cp -a "$TEMP/var_log_notifiarr/." /var/log/notifiarr/
+echo "Impostazione permessi..."
+sudo chown -R radarr:plex /var/lib/radarr
+sudo chown -R sonarr:plex /var/lib/sonarr
+sudo chown -R plex:plex /var/lib/plexmediaserver
+sudo chown -R notifiarr:notifiarr /etc/notifiarr /var/log/notifiarr
+sudo chmod -R 755 /var/lib/radarr /var/lib/sonarr /var/lib/plexmediaserver /etc/notifiarr /var/log/notifiarr
+echo "Riavvio dei servizi..."
+sudo systemctl start radarr sonarr plexmediaserver notifiarr
+echo "=== Stato finale dei servizi ==="
+for s in radarr sonarr plexmediaserver notifiarr; do
+  echo "--- $s ---"
+  sudo systemctl status "$s" --no-pager
+done
+echo "=== Ripristino completato con successo: $(date) ==="
