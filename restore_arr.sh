@@ -1,4 +1,6 @@
 #!/bin/bash
+VERSION="1.0"
+
 # ====================================================================================
 # restore_arr.sh - Script di ripristino configurazioni e servizi
 # Creato da Oscar & ChatGPT (OpenAI)
