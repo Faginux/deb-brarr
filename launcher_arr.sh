@@ -5,29 +5,41 @@ echo "=== Debian BTRFS ARR Control ==="
 echo "Creato da Oscar & ChatGPT"
 echo
 
-# Check per comandi essenziali
+# Check per comandi essenziali, con opzione di installazione se mancanti
 for cmd in curl chmod; do
   if ! command -v "$cmd" > /dev/null; then
-    echo "Errore: comando '$cmd' non trovato. Installalo prima di continuare."
-    exit 1
+    echo "Il comando '$cmd' non è installato."
+    read -p "Vuoi installare '$cmd' automaticamente? [s/N]: " -r risposta
+    if [[ "$risposta" =~ ^([sSyY])$ ]]; then
+      if command -v apt > /dev/null; then
+        sudo apt update && sudo apt install -y "$cmd"
+      elif command -v dnf > /dev/null; then
+        sudo dnf install -y "$cmd"
+      elif command -v pacman > /dev/null; then
+        sudo pacman -Sy --noconfirm "$cmd"
+      else
+        echo "Errore: gestore pacchetti non supportato. Installa '$cmd' manualmente."
+        exit 1
+      fi
+    else
+      echo "Errore: '$cmd' richiesto per continuare."
+      exit 1
+    fi
   fi
 done
 
 GITHUB_URL="https://raw.githubusercontent.com/Faginux/deb-brarr/main"
 
-# Funzione per scaricare solo VERSION da GitHub
 fetch_remote_version() {
   local f="$1"
   curl -fsSL "$GITHUB_URL/$f" | grep -m1 '^VERSION=' | cut -d'"' -f2
 }
 
-# Funzione per leggere VERSION locale
 fetch_local_version() {
   local f="$1"
   grep -m1 '^VERSION=' "$f" 2>/dev/null | cut -d'"' -f2
 }
 
-# Funzione per scaricare script, con controllo versione
 download_script() {
   local f="$1"
   local v_local v_remote
@@ -65,7 +77,6 @@ download_script() {
   fi
 }
 
-# All'avvio, verifica/scarica solo se mancano
 for f in backup_arr.sh restore_arr.sh; do
   if [ ! -f "$f" ]; then
     download_script "$f"
