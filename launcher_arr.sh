@@ -1,60 +1,104 @@
 #!/bin/bash
-set -e  # Se un comando fallisce, termina immediatamente lo script
+set -e
 
-# Titolo e autori
 echo "=== Debian BTRFS ARR Control ==="
 echo "Creato da Oscar & ChatGPT"
 echo
 
-# Variabile contenente l'URL base del repository GitHub da cui scaricare gli script
+# Check per comandi essenziali
+for cmd in curl chmod; do
+  if ! command -v "$cmd" > /dev/null; then
+    echo "Errore: comando '$cmd' non trovato. Installalo prima di continuare."
+    exit 1
+  fi
+done
+
 GITHUB_URL="https://raw.githubusercontent.com/Faginux/deb-brarr/main"
 
-# Funzione per scaricare uno script da GitHub
-download_script() {
-  local f="$1"  # parametro: nome file da scaricare
-  echo "Scarico $f da GitHub..."
-  # Scarica il file dal repo, salva con nome locale uguale, e controlla eventuali errori
-  curl --connect-timeout 10 --max-time 60 -fsSL "$GITHUB_URL/$f" -o "$f" || { echo "Errore: impossibile scaricare $f"; exit 1; }
-  chmod +x "$f"  # rende lo script scaricato eseguibile
+# Funzione per scaricare solo VERSION da GitHub
+fetch_remote_version() {
+  local f="$1"
+  curl -fsSL "$GITHUB_URL/$f" | grep -m1 '^VERSION=' | cut -d'"' -f2
 }
 
-# Ciclo per verificare che gli script backup_arr.sh e restore_arr.sh siano presenti; altrimenti li scarica
+# Funzione per leggere VERSION locale
+fetch_local_version() {
+  local f="$1"
+  grep -m1 '^VERSION=' "$f" 2>/dev/null | cut -d'"' -f2
+}
+
+# Funzione per scaricare script, con controllo versione
+download_script() {
+  local f="$1"
+  local v_local v_remote
+  v_remote=$(fetch_remote_version "$f")
+  v_local=$(fetch_local_version "$f")
+  echo "$f → versione locale: ${v_local:-none}, versione remota: $v_remote"
+
+  if [[ -z "$v_remote" ]]; then
+    echo "ATTENZIONE: impossibile leggere la versione remota di $f. Scarico comunque..."
+    curl -fsSL "$GITHUB_URL/$f" -o "$f" || { echo "Errore download $f"; exit 1; }
+    chmod +x "$f"
+    return
+  fi
+
+  if [[ -z "$v_local" ]]; then
+    echo "File locale $f mancante o senza VERSION: scarico..."
+    curl -fsSL "$GITHUB_URL/$f" -o "$f" || { echo "Errore download $f"; exit 1; }
+    chmod +x "$f"
+    return
+  fi
+
+  if [[ "$v_local" != "$v_remote" ]]; then
+    echo "→ Versione remota più recente: scarico nuovo $f..."
+    curl -fsSL "$GITHUB_URL/$f" -o "$f" || { echo "Errore download $f"; exit 1; }
+    chmod +x "$f"
+  else
+    echo "→ Versioni uguali: vuoi aggiornare comunque?"
+    read -p "Scaricare lo script $f anche se la versione è uguale? [s/N]: " -r confirm
+    if [[ "$confirm" =~ ^([sSyY])$ ]]; then
+      curl -fsSL "$GITHUB_URL/$f" -o "$f" || { echo "Errore download $f"; exit 1; }
+      chmod +x "$f"
+    else
+      echo "→ Mantengo la versione locale di $f."
+    fi
+  fi
+}
+
+# All'avvio, verifica/scarica solo se mancano
 for f in backup_arr.sh restore_arr.sh; do
   if [ ! -f "$f" ]; then
     download_script "$f"
   fi
 done
 
-# Ciclo principale per mostrare il menu all'utente
 while true; do
   echo
   echo "Scegli un'opzione:"
-  # 'select' crea un menu numerato per scegliere un'opzione
   select opt in "Esegui Backup" "Esegui Ripristino" "Aggiorna Script" "Esci"; do
     case $REPLY in
       1)
         echo "Avvio backup..."
-        exec ./backup_arr.sh  # esegue lo script di backup e sostituisce il processo corrente
+        exec ./backup_arr.sh
         ;;
       2)
         echo "Avvio ripristino..."
-        exec ./restore_arr.sh  # esegue lo script di ripristino
+        exec ./restore_arr.sh
         ;;
       3)
-        echo "Aggiornamento script da GitHub..."
-        # Aggiorna entrambi gli script forzando il download
+        echo "Aggiorno entrambi gli script..."
         for f in backup_arr.sh restore_arr.sh; do
           download_script "$f"
         done
         echo "Aggiornamento completato!"
-        break  # torna al menu principale
+        break
         ;;
       4)
         echo "Uscita."
-        exit 0  # chiude il launcher
+        exit 0
         ;;
       *)
-        echo "Opzione non valida."  # gestisce input fuori range
+        echo "Opzione non valida."
         ;;
     esac
   done
